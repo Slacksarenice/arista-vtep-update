@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arista-vtep-update"
+version = "0.1.0"
+description = "Utility for statically configuring VXLAN VTEP flood lists on Arista switches"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "paramiko",
+    "requests"
+]
+
+[project.scripts]
+arista-vtep-update = "arista_vtep_update:main"

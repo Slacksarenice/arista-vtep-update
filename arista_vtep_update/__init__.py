@@ -93,8 +93,8 @@ def send_ssh_commands(
     return out
 
 
-def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
-    """Build CLI commands to update the Vxlan1 flood list.
+def build_flood_commands(remote_vtep_ips: List[str], interface: str = "Vxlan1") -> List[str]:
+    """Build CLI commands to update the VXLAN interface flood list.
 
     Parameters
     ----------
@@ -107,7 +107,7 @@ def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
         Commands ready to be sent to the switch.
     """
 
-    commands = ["interface Vxlan1"]
+    commands = [f"interface {interface}"]
     # Clear any existing flood list entries so only the desired VTEPs remain.
     # 'no vxlan flood vtep' removes all currently configured remote VTEP
     # addresses from the list.
@@ -120,7 +120,7 @@ def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
 
 def parse_args(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Update Vxlan1 flood list on multiple Arista switches"
+        description="Update VXLAN interface flood list on multiple Arista switches"
     )
     parser.add_argument(
         "hosts",
@@ -147,6 +147,12 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         "--use-eapi",
         action="store_true",
         help="Use eAPI instead of SSH",
+    )
+    parser.add_argument(
+        "-i",
+        "--interface",
+        default="Vxlan1",
+        help="VXLAN interface to update (default: Vxlan1)",
     )
     return parser.parse_args(argv)
 
@@ -239,7 +245,7 @@ def main(argv: List[str]) -> int:
 
         def worker(host: str, ip: str):
             remote_vteps = [other for other in ips if other != ip]
-            commands = build_flood_commands(remote_vteps)
+            commands = build_flood_commands(remote_vteps, interface=args.interface)
             if args.use_eapi:
                 result = send_eapi_commands(
                     host=host,

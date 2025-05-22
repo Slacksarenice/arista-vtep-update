@@ -2,8 +2,9 @@
 
 Utility for statically configuring VXLAN VTEP flood lists on Arista switches.
 By default the script connects via SSH but eAPI can be used as an optional
-transport. `Vxlan1` on each switch is updated so that all provided devices are
-configured as remote VTEP endpoints.
+transport. By default `Vxlan1` on each switch is updated so that all provided
+devices are configured as remote VTEP endpoints, but a different interface can
+be specified with `--interface`.
 
 ## Requirements
 
@@ -27,7 +28,7 @@ pip install .
 ## Usage
 
 ```
-arista-vtep-update -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE] <host1> <host2> [host3 ...]
+arista-vtep-update -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE] [--interface VXLAN] <host1> <host2> [host3 ...]
 ```
 
 The script prompts for the password. At least two hosts must be supplied.

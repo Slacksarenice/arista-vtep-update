@@ -12,6 +12,28 @@ except ModuleNotFoundError:  # pragma: no cover - dependency may not be present
     sys.modules['requests'] = requests
 
 import update_vtep
+import concurrent.futures
+
+
+class SynchronousExecutor:
+    """Executor that runs tasks immediately in the calling thread."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def submit(self, fn, *args, **kwargs):
+        fut = concurrent.futures.Future()
+        try:
+            fut.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # pragma: no cover - should not happen
+            fut.set_exception(exc)
+        return fut
 
 
 class BuildFloodCommandsTest(unittest.TestCase):
@@ -81,6 +103,7 @@ class MainTest(unittest.TestCase):
     @patch("update_vtep.send_eapi_commands")
     @patch("update_vtep.resolve_hosts")
     @patch("update_vtep.getpass", return_value="pass")
+    @patch("update_vtep.ThreadPoolExecutor", new=SynchronousExecutor)
     def test_main_success(self, mock_getpass, mock_resolve, mock_send, mock_print):
         mock_resolve.return_value = ["192.0.2.1", "192.0.2.2"]
         mock_send.return_value = {"result": "ok"}

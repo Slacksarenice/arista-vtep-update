@@ -11,7 +11,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency may not be present
     requests = types.SimpleNamespace(RequestException=Exception, post=None)
     sys.modules['requests'] = requests
 
-import update_vtep
+import arista_vtep_update as update_vtep
 import concurrent.futures
 
 
@@ -58,13 +58,13 @@ class ParseArgsTest(unittest.TestCase):
 
 
 class ResolveHostsTest(unittest.TestCase):
-    @patch("update_vtep.socket.gethostbyname")
+    @patch("arista_vtep_update.socket.gethostbyname")
     def test_resolve_hosts(self, mock_gethostbyname):
         mock_gethostbyname.side_effect = ["192.0.2.1", "192.0.2.2"]
         result = update_vtep.resolve_hosts(["leaf1", "leaf2"])
         self.assertEqual(result, ["192.0.2.1", "192.0.2.2"])
 
-    @patch("update_vtep.socket.gethostbyname", side_effect=socket.gaierror(1, "fail"))
+    @patch("arista_vtep_update.socket.gethostbyname", side_effect=socket.gaierror(1, "fail"))
     def test_resolve_hosts_error(self, mock_gethostbyname):
         with self.assertRaises(SystemExit) as cm:
             update_vtep.resolve_hosts(["badhost"])
@@ -72,7 +72,7 @@ class ResolveHostsTest(unittest.TestCase):
 
 
 class SendEapiCommandsTest(unittest.TestCase):
-    @patch("update_vtep.requests.post")
+    @patch("arista_vtep_update.requests.post")
     def test_send_eapi_commands(self, mock_post):
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
@@ -100,10 +100,10 @@ class MainTest(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch("builtins.print")
-    @patch("update_vtep.send_eapi_commands")
-    @patch("update_vtep.resolve_hosts")
-    @patch("update_vtep.getpass", return_value="pass")
-    @patch("update_vtep.ThreadPoolExecutor", new=SynchronousExecutor)
+    @patch("arista_vtep_update.send_eapi_commands")
+    @patch("arista_vtep_update.resolve_hosts")
+    @patch("arista_vtep_update.getpass", return_value="pass")
+    @patch("arista_vtep_update.ThreadPoolExecutor", new=SynchronousExecutor)
     def test_main_success(self, mock_getpass, mock_resolve, mock_send, mock_print):
         mock_resolve.return_value = ["192.0.2.1", "192.0.2.2"]
         mock_send.return_value = {"result": "ok"}

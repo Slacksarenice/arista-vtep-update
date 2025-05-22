@@ -10,7 +10,7 @@ import json
 import sys
 import socket
 from getpass import getpass
-from typing import List
+from typing import List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import paramiko
@@ -151,15 +151,41 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def read_hosts_from_file(path: str) -> List[str]:
-    """Read hostnames or IP addresses from a file."""
+def read_hosts_from_file(path: str) -> Tuple[List[List[str]], bool]:
+    """Read hostnames or IP addresses from a file.
+
+    The file can contain plain hostnames/IPs one per line or can be
+    "tagged" using INI style sections. When sections are present each
+    section represents an independent group of hosts.
+
+    Returns a tuple ``(groups, has_sections)`` where ``groups`` is a list of
+    host lists.
+    """
+
+    groups: List[List[str]] = []
+    current: List[str] = []
+    has_sections = False
 
     try:
         with open(path) as f:
-            return [line.strip() for line in f if line.strip()]
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    has_sections = True
+                    if current:
+                        groups.append(current)
+                        current = []
+                else:
+                    current.extend(stripped.split())
+        if current:
+            groups.append(current)
     except OSError as exc:
         print(f"Failed to read hosts file {path}: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    return groups, has_sections
 
 
 def resolve_hosts(hosts: List[str]) -> List[str]:
@@ -179,49 +205,70 @@ def resolve_hosts(hosts: List[str]) -> List[str]:
 def main(argv: List[str]) -> int:
     args = parse_args(argv)
 
-    hosts = list(args.hosts)
-    if args.hosts_file:
-        hosts.extend(read_hosts_from_file(args.hosts_file))
+    groups: List[List[str]]
+    tagged = False
 
-    if len(hosts) < 2:
+    if args.hosts_file:
+        groups, tagged = read_hosts_from_file(args.hosts_file)
+    else:
+        groups, tagged = [], False
+
+    if args.hosts:
+        if tagged:
+            # Additional hosts on the command line become another group
+            groups.append(list(args.hosts))
+        else:
+            if groups:
+                groups[0].extend(list(args.hosts))
+            else:
+                groups = [list(args.hosts)]
+
+    if not groups:
         print("At least two hosts must be specified", file=sys.stderr)
         return 1
 
+    for g in groups:
+        if len(g) < 2:
+            print("At least two hosts must be specified in each group", file=sys.stderr)
+            return 1
+
     password = getpass()
-    ips = resolve_hosts(hosts)
 
-    def worker(host: str, ip: str):
-        remote_vteps = [other for other in ips if other != ip]
-        commands = build_flood_commands(remote_vteps)
-        if args.use_eapi:
-            result = send_eapi_commands(
-                host=host,
-                username=args.username,
-                password=password,
-                commands=commands,
-                verify_ssl=args.verify_ssl,
-            )
-            return host, json.dumps(result)
-        else:
-            output = send_ssh_commands(
-                host=host,
-                username=args.username,
-                password=password,
-                commands=commands,
-            )
-            return host, output
+    for hosts in groups:
+        ips = resolve_hosts(hosts)
 
-    with ThreadPoolExecutor(max_workers=len(hosts)) as executor:
-        future_to_host = {
-            executor.submit(worker, host, ip): host
-            for host, ip in zip(hosts, ips)
-        }
+        def worker(host: str, ip: str):
+            remote_vteps = [other for other in ips if other != ip]
+            commands = build_flood_commands(remote_vteps)
+            if args.use_eapi:
+                result = send_eapi_commands(
+                    host=host,
+                    username=args.username,
+                    password=password,
+                    commands=commands,
+                    verify_ssl=args.verify_ssl,
+                )
+                return host, json.dumps(result)
+            else:
+                output = send_ssh_commands(
+                    host=host,
+                    username=args.username,
+                    password=password,
+                    commands=commands,
+                )
+                return host, output
 
-        for future in as_completed(future_to_host):
-            host = future_to_host[future]
-            try:
-                h, result = future.result()
-                print(f"{h}: {result}")
-            except (requests.RequestException, RuntimeError, paramiko.SSHException) as exc:
-                print(f"{host}: failed to send commands: {exc}", file=sys.stderr)
+        with ThreadPoolExecutor(max_workers=len(hosts)) as executor:
+            future_to_host = {
+                executor.submit(worker, host, ip): host
+                for host, ip in zip(hosts, ips)
+            }
+
+            for future in as_completed(future_to_host):
+                host = future_to_host[future]
+                try:
+                    h, result = future.result()
+                    print(f"{h}: {result}")
+                except (requests.RequestException, RuntimeError, paramiko.SSHException) as exc:
+                    print(f"{host}: failed to send commands: {exc}", file=sys.stderr)
     return 0

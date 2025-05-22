@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Utility for updating VTEP endpoints on Arista switches.
 
-This script uses Arista eAPI to manually configure VXLAN VTEP
-endpoints. It does not rely on EVPN and is intended for static
-configuration of remote VTEPs.
+The script can configure VXLAN VTEP endpoints either by connecting via
+SSH or, optionally, using eAPI.  Historically only eAPI was supported
+but the default behaviour is now to use SSH which works on devices
+where eAPI is not enabled.
 """
 
 import argparse
@@ -12,6 +13,9 @@ import sys
 import socket
 from getpass import getpass
 from typing import List
+
+import paramiko
+import time
 
 import requests
 
@@ -66,6 +70,30 @@ def send_eapi_commands(
     return response.json()
 
 
+def send_ssh_commands(
+    host: str,
+    username: str,
+    password: str,
+    commands: List[str],
+) -> str:
+    """Send a list of commands to the Arista switch over SSH."""
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(hostname=host, username=username, password=password, look_for_keys=False)
+
+    cli_cmds = " ; ".join(["configure terminal"] + commands)
+    full_cmd = f"Cli -p 15 -c '{cli_cmds}'"
+    stdin, stdout, stderr = client.exec_command(full_cmd)
+    stdout.channel.recv_exit_status()
+    out = stdout.read().decode()
+    err = stderr.read().decode()
+    client.close()
+    if err:
+        raise RuntimeError(err)
+    return out
+
+
 def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
     """Build CLI commands to update the Vxlan1 flood list.
 
@@ -77,7 +105,7 @@ def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
     Returns
     -------
     List[str]
-        Commands ready to be sent to the switch via eAPI.
+        Commands ready to be sent to the switch.
     """
 
     commands = ["interface Vxlan1"]
@@ -106,6 +134,11 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         "--verify-ssl",
         action="store_true",
         help="Verify SSL certificates when connecting to the switches",
+    )
+    parser.add_argument(
+        "--use-eapi",
+        action="store_true",
+        help="Use eAPI instead of SSH",
     )
     return parser.parse_args(argv)
 
@@ -138,18 +171,26 @@ def main(argv: List[str]) -> int:
         remote_vteps = [other for other in ips if other != ip]
         commands = build_flood_commands(remote_vteps)
         try:
-            result = send_eapi_commands(
-                host=host,
-                username=args.username,
-                password=password,
-                commands=commands,
-                verify_ssl=args.verify_ssl,
-            )
-        except requests.RequestException as exc:
+            if args.use_eapi:
+                result = send_eapi_commands(
+                    host=host,
+                    username=args.username,
+                    password=password,
+                    commands=commands,
+                    verify_ssl=args.verify_ssl,
+                )
+                print(f"{host}: {json.dumps(result)}")
+            else:
+                output = send_ssh_commands(
+                    host=host,
+                    username=args.username,
+                    password=password,
+                    commands=commands,
+                )
+                print(f"{host}: {output}")
+        except (requests.RequestException, RuntimeError, paramiko.SSHException) as exc:
             print(f"{host}: failed to send commands: {exc}", file=sys.stderr)
             continue
-
-        print(f"{host}: {json.dumps(result)}")
 
     return 0
 

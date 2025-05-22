@@ -109,6 +109,10 @@ def build_flood_commands(remote_vtep_ips: List[str]) -> List[str]:
     """
 
     commands = ["interface Vxlan1"]
+    # Clear any existing flood list entries so only the desired VTEPs remain.
+    # 'no vxlan flood vtep' removes all currently configured remote VTEP
+    # addresses from the list.
+    commands.append("no vxlan flood vtep")
     for ip in remote_vtep_ips:
         commands.append(f"vxlan flood vtep {ip}")
     commands.append("exit")

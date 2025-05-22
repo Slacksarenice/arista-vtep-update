@@ -19,6 +19,7 @@ class BuildFloodCommandsTest(unittest.TestCase):
         remote = ["1.1.1.1", "2.2.2.2"]
         expected = [
             "interface Vxlan1",
+            "no vxlan flood vtep",
             "vxlan flood vtep 1.1.1.1",
             "vxlan flood vtep 2.2.2.2",
             "exit",
@@ -84,7 +85,7 @@ class MainTest(unittest.TestCase):
         mock_resolve.return_value = ["192.0.2.1", "192.0.2.2"]
         mock_send.return_value = {"result": "ok"}
 
-        result = update_vtep.main(["-u", "admin", "leaf1", "leaf2"])
+        result = update_vtep.main(["-u", "admin", "--use-eapi", "leaf1", "leaf2"])
 
         self.assertEqual(result, 0)
         self.assertEqual(mock_send.call_count, 2)

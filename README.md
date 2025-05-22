@@ -16,11 +16,15 @@ configured as remote VTEP endpoints.
 ## Usage
 
 ```
-python update_vtep.py -u <username> [--use-eapi] [--verify-ssl] <host1> <host2> [host3 ...]
+python update_vtep.py -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE] <host1> <host2> [host3 ...]
 ```
 
 The script prompts for the password. At least two hosts must be supplied.
 Each switch will have all other hosts added to its flood list.
+
+Hosts can also be read from a file using `--hosts-file`, with one hostname or IP
+per line. Hosts provided on the command line are combined with those read from
+the file.
 
 Example:
 

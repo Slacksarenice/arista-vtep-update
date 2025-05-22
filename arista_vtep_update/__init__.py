@@ -124,7 +124,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "hosts",
-        nargs="+",
+        nargs="*",
         help="Hostnames or IP addresses of the switches (minimum two)",
     )
     parser.add_argument(
@@ -132,6 +132,11 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         "--username",
         required=True,
         help="Login username",
+    )
+    parser.add_argument(
+        "-f",
+        "--hosts-file",
+        help="File containing hostnames or IP addresses, one per line",
     )
     parser.add_argument(
         "--verify-ssl",
@@ -144,6 +149,17 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         help="Use eAPI instead of SSH",
     )
     return parser.parse_args(argv)
+
+
+def read_hosts_from_file(path: str) -> List[str]:
+    """Read hostnames or IP addresses from a file."""
+
+    try:
+        with open(path) as f:
+            return [line.strip() for line in f if line.strip()]
+    except OSError as exc:
+        print(f"Failed to read hosts file {path}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def resolve_hosts(hosts: List[str]) -> List[str]:
@@ -163,12 +179,16 @@ def resolve_hosts(hosts: List[str]) -> List[str]:
 def main(argv: List[str]) -> int:
     args = parse_args(argv)
 
-    if len(args.hosts) < 2:
+    hosts = list(args.hosts)
+    if args.hosts_file:
+        hosts.extend(read_hosts_from_file(args.hosts_file))
+
+    if len(hosts) < 2:
         print("At least two hosts must be specified", file=sys.stderr)
         return 1
 
     password = getpass()
-    ips = resolve_hosts(args.hosts)
+    ips = resolve_hosts(hosts)
 
     def worker(host: str, ip: str):
         remote_vteps = [other for other in ips if other != ip]
@@ -191,10 +211,10 @@ def main(argv: List[str]) -> int:
             )
             return host, output
 
-    with ThreadPoolExecutor(max_workers=len(args.hosts)) as executor:
+    with ThreadPoolExecutor(max_workers=len(hosts)) as executor:
         future_to_host = {
             executor.submit(worker, host, ip): host
-            for host, ip in zip(args.hosts, ips)
+            for host, ip in zip(hosts, ips)
         }
 
         for future in as_completed(future_to_host):

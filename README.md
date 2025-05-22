@@ -13,10 +13,21 @@ configured as remote VTEP endpoints.
 - Arista switch reachable over SSH. eAPI must be enabled only when the
   `--use-eapi` option is used.
 
+## Installation
+
+Install the required Python packages and optionally install the project
+itself to get the ``arista-vtep-update`` command:
+
+```bash
+pip install -r requirements.txt
+pip install .
+```
+
+
 ## Usage
 
 ```
-python update_vtep.py -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE] <host1> <host2> [host3 ...]
+arista-vtep-update -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE] <host1> <host2> [host3 ...]
 ```
 
 The script prompts for the password. At least two hosts must be supplied.
@@ -29,7 +40,7 @@ the file.
 Example:
 
 ```
-python update_vtep.py -u admin leaf1 leaf2 leaf3
+arista-vtep-update -u admin leaf1 leaf2 leaf3
 ```
 
 SSL verification is disabled by default. Use `--verify-ssl` if your eAPI

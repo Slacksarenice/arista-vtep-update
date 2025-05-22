@@ -33,9 +33,20 @@ arista-vtep-update -u <username> [--use-eapi] [--verify-ssl] [--hosts-file FILE]
 The script prompts for the password. At least two hosts must be supplied.
 Each switch will have all other hosts added to its flood list.
 
-Hosts can also be read from a file using `--hosts-file`, with one hostname or IP
-per line. Hosts provided on the command line are combined with those read from
-the file.
+Hosts can also be read from a file using `--hosts-file`. The file may contain a
+simple list of hosts, one per line, or it may define multiple independent host
+groups using an INI style format:
+
+```
+[group-a]
+10.0.0.1 10.0.0.2
+[group-b]
+192.0.2.1 192.0.2.2
+```
+
+When groups are used each section is processed separately. In the above
+example the first pair is configured only with each other, and likewise for the
+second pair. Any hosts provided on the command line form an additional group.
 
 Example:
 

@@ -164,6 +164,55 @@ class MainTest(unittest.TestCase):
             verify_ssl=False,
         )
 
+    @patch("builtins.print")
+    @patch("arista_vtep_update.send_eapi_commands")
+    @patch("arista_vtep_update.resolve_hosts")
+    @patch("arista_vtep_update.getpass", return_value="pass")
+    @patch("arista_vtep_update.ThreadPoolExecutor", new=SynchronousExecutor)
+    def test_main_tagged_hosts_file(self, mock_getpass, mock_resolve, mock_send, mock_print):
+        mock_resolve.side_effect = [
+            ["192.0.2.1", "192.0.2.2"],
+            ["192.0.2.3", "192.0.2.4"],
+        ]
+        mock_send.return_value = {"result": "ok"}
+
+        data = "[grp1]\nleaf1 leaf2\n[grp2]\nleaf3 leaf4\n"
+        m = unittest.mock.mock_open(read_data=data)
+        with patch("builtins.open", m):
+            result = update_vtep.main(["-u", "admin", "--use-eapi", "-f", "hosts.txt"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(mock_send.call_count, 4)
+        m.assert_called_once_with("hosts.txt")
+        mock_send.assert_any_call(
+            host="leaf1",
+            username="admin",
+            password="pass",
+            commands=update_vtep.build_flood_commands(["192.0.2.2"]),
+            verify_ssl=False,
+        )
+        mock_send.assert_any_call(
+            host="leaf2",
+            username="admin",
+            password="pass",
+            commands=update_vtep.build_flood_commands(["192.0.2.1"]),
+            verify_ssl=False,
+        )
+        mock_send.assert_any_call(
+            host="leaf3",
+            username="admin",
+            password="pass",
+            commands=update_vtep.build_flood_commands(["192.0.2.4"]),
+            verify_ssl=False,
+        )
+        mock_send.assert_any_call(
+            host="leaf4",
+            username="admin",
+            password="pass",
+            commands=update_vtep.build_flood_commands(["192.0.2.3"]),
+            verify_ssl=False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

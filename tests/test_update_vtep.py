@@ -48,6 +48,19 @@ class BuildFloodCommandsTest(unittest.TestCase):
         ]
         self.assertEqual(update_vtep.build_flood_commands(remote), expected)
 
+    def test_build_flood_commands_custom_interface(self):
+        remote = ["1.1.1.1"]
+        expected = [
+            "interface Vxlan100",
+            "no vxlan flood vtep",
+            "vxlan flood vtep 1.1.1.1",
+            "exit",
+        ]
+        self.assertEqual(
+            update_vtep.build_flood_commands(remote, interface="Vxlan100"),
+            expected,
+        )
+
 
 class ParseArgsTest(unittest.TestCase):
     def test_parse_args(self):
@@ -55,12 +68,24 @@ class ParseArgsTest(unittest.TestCase):
         self.assertEqual(args.username, "admin")
         self.assertTrue(args.verify_ssl)
         self.assertEqual(args.hosts, ["leaf1", "leaf2"])
+        self.assertEqual(args.interface, "Vxlan1")
 
     def test_parse_args_hosts_file(self):
         args = update_vtep.parse_args(["-u", "admin", "-f", "hosts.txt", "leaf1"])
         self.assertEqual(args.username, "admin")
         self.assertEqual(args.hosts_file, "hosts.txt")
         self.assertEqual(args.hosts, ["leaf1"])
+
+    def test_parse_args_custom_interface(self):
+        args = update_vtep.parse_args([
+            "-u",
+            "admin",
+            "-i",
+            "Vxlan100",
+            "leaf1",
+            "leaf2",
+        ])
+        self.assertEqual(args.interface, "Vxlan100")
 
 
 class ResolveHostsTest(unittest.TestCase):

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Utility for updating VTEP endpoints on Arista switches.
-
-The script can configure VXLAN VTEP endpoints either by connecting via
-SSH or, optionally, using eAPI.  Historically only eAPI was supported
-but the default behaviour is now to use SSH which works on devices
-where eAPI is not enabled.
-"""
+# Utility for updating VTEP endpoints on Arista switches.
+#
+# The script can configure VXLAN VTEP endpoints either by connecting via
+# SSH or, optionally, using eAPI. Historically only eAPI was supported
+# but the default behaviour is now to use SSH which works on devices
+# where eAPI is not enabled.
 
 import argparse
 import json
@@ -13,6 +12,7 @@ import sys
 import socket
 from getpass import getpass
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import paramiko
 import time
@@ -171,30 +171,40 @@ def main(argv: List[str]) -> int:
     password = getpass()
     ips = resolve_hosts(args.hosts)
 
-    for host, ip in zip(args.hosts, ips):
+    def worker(host: str, ip: str):
         remote_vteps = [other for other in ips if other != ip]
         commands = build_flood_commands(remote_vteps)
-        try:
-            if args.use_eapi:
-                result = send_eapi_commands(
-                    host=host,
-                    username=args.username,
-                    password=password,
-                    commands=commands,
-                    verify_ssl=args.verify_ssl,
-                )
-                print(f"{host}: {json.dumps(result)}")
-            else:
-                output = send_ssh_commands(
-                    host=host,
-                    username=args.username,
-                    password=password,
-                    commands=commands,
-                )
-                print(f"{host}: {output}")
-        except (requests.RequestException, RuntimeError, paramiko.SSHException) as exc:
-            print(f"{host}: failed to send commands: {exc}", file=sys.stderr)
-            continue
+        if args.use_eapi:
+            result = send_eapi_commands(
+                host=host,
+                username=args.username,
+                password=password,
+                commands=commands,
+                verify_ssl=args.verify_ssl,
+            )
+            return host, json.dumps(result)
+        else:
+            output = send_ssh_commands(
+                host=host,
+                username=args.username,
+                password=password,
+                commands=commands,
+            )
+            return host, output
+
+    with ThreadPoolExecutor(max_workers=len(args.hosts)) as executor:
+        future_to_host = {
+            executor.submit(worker, host, ip): host
+            for host, ip in zip(args.hosts, ips)
+        }
+
+        for future in as_completed(future_to_host):
+            host = future_to_host[future]
+            try:
+                h, result = future.result()
+                print(f"{h}: {result}")
+            except (requests.RequestException, RuntimeError, paramiko.SSHException) as exc:
+                print(f"{host}: failed to send commands: {exc}", file=sys.stderr)
 
     return 0
 

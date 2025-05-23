@@ -124,6 +124,45 @@ class SendEapiCommandsTest(unittest.TestCase):
         self.assertEqual(kwargs["auth"], ("user", "pass"))
         self.assertEqual(kwargs["verify"], True)
 
+    @patch("arista_vtep_update.requests.post")
+    def test_send_eapi_commands_timeout(self, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"status": "ok"}
+        mock_post.return_value = mock_response
+
+        update_vtep.send_eapi_commands(
+            host="switch1",
+            username="user",
+            password="pass",
+            commands=["show version"],
+            verify_ssl=False,
+            timeout=5,
+        )
+
+        args, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["timeout"], 5)
+
+
+class SendSSHCommandsTest(unittest.TestCase):
+    @patch("arista_vtep_update.paramiko.SSHClient")
+    def test_send_ssh_commands_closes_on_error(self, mock_ssh_client):
+        mock_client = Mock()
+        mock_ssh_client.return_value = mock_client
+        mock_client.set_missing_host_key_policy.return_value = None
+        mock_client.connect.return_value = None
+        stdout = Mock()
+        stderr = Mock()
+        stdout.channel.recv_exit_status.return_value = None
+        stdout.read.return_value = b""
+        stderr.read.return_value = b"bad"
+        mock_client.exec_command.return_value = (None, stdout, stderr)
+
+        with self.assertRaises(RuntimeError):
+            update_vtep.send_ssh_commands("host", "u", "p", ["cmd"])
+
+        mock_client.close.assert_called_once()
+
 
 class MainTest(unittest.TestCase):
     def test_main_not_enough_hosts(self):

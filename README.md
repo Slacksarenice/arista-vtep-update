@@ -1,29 +1,28 @@
 # arista-vtep-update
 
 Utility for statically configuring VXLAN VTEP flood lists on Arista switches.
-By default the script connects via SSH but eAPI can be used as an optional
-transport. By default `Vxlan1` on each switch is updated so that all provided
-devices are configured as remote VTEP endpoints, but a different interface can
-be specified with `--interface`.
+By default the script connects via SSH, but eAPI can be used as an optional
+transport. `Vxlan1` on each switch is updated so that all provided devices are
+configured as remote VTEP endpoints, but a different interface can be specified
+with `--interface`.
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.8 or later
 - `requests` library (only needed when using eAPI)
 - `paramiko` library
-- Arista switch reachable over SSH. eAPI must be enabled only when the
-  `--use-eapi` option is used.
+- An Arista switch reachable over SSH (enable eAPI only when using
+  `--use-eapi`).
 
 ## Installation
 
 Install the required Python packages and optionally install the project
-itself to get the ``arista-vtep-update`` command:
+itself to get the `arista-vtep-update` command:
 
 ```bash
 pip install -r requirements.txt
 pip install .
 ```
-
 
 ## Usage
 

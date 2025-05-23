@@ -25,6 +25,7 @@ def send_eapi_commands(
     password: str,
     commands: List[str],
     verify_ssl: bool = False,
+    timeout: int = 10,
 ) -> dict:
     """Send a list of commands to the Arista switch using eAPI.
 
@@ -41,6 +42,8 @@ def send_eapi_commands(
     verify_ssl : bool
         Whether to verify SSL certificates. Defaults to False
         as most lab environments use self-signed certificates.
+    timeout : int
+        Timeout for the HTTP request in seconds. Defaults to 10.
 
     Returns
     -------
@@ -64,6 +67,7 @@ def send_eapi_commands(
         auth=(username, password),
         json=payload,
         verify=verify_ssl,
+        timeout=timeout,
     )
     response.raise_for_status()
     return response.json()
@@ -79,18 +83,20 @@ def send_ssh_commands(
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname=host, username=username, password=password, look_for_keys=False)
+    try:
+        client.connect(hostname=host, username=username, password=password, look_for_keys=False)
 
-    cli_cmds = " ; ".join(["configure terminal"] + commands)
-    full_cmd = f"Cli -p 15 -c '{cli_cmds}'"
-    stdin, stdout, stderr = client.exec_command(full_cmd)
-    stdout.channel.recv_exit_status()
-    out = stdout.read().decode()
-    err = stderr.read().decode()
-    client.close()
-    if err:
-        raise RuntimeError(err)
-    return out
+        cli_cmds = " ; ".join(["configure terminal"] + commands)
+        full_cmd = f"Cli -p 15 -c '{cli_cmds}'"
+        stdin, stdout, stderr = client.exec_command(full_cmd)
+        stdout.channel.recv_exit_status()
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        if err:
+            raise RuntimeError(err)
+        return out
+    finally:
+        client.close()
 
 
 def build_flood_commands(remote_vtep_ips: List[str], interface: str = "Vxlan1") -> List[str]:
